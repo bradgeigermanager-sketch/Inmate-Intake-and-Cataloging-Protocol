@@ -1,0 +1,85 @@
+To bridge the gap between your SQL backend and your automation layer, we will define a Python structure that mirrors the schema and a "Scout" agent designed to maintain data integrity.
+
+---
+
+### **1. Python Data Integration Layer**
+
+This class utilizes a modular pattern, ensuring that each method acts as a discrete sub-task within your SDK. It avoids nested logic by maintaining clear separation between identity, facility, and status.
+
+```python
+import uuid
+from datetime import datetime
+
+class InmateManager:
+    def __init__(self, db_connection):
+        self.db = db_connection
+
+    def register_inmate(self, name, dob, doc_number):
+        """Creates a new unique inmate record."""
+        uid = str(uuid.uuid4())
+        # SQL: INSERT INTO Inmates (Universal_ID, Legal_Name, DOB, Global_DOC_Number)
+        return uid
+
+    def record_movement(self, inmate_id, inst_id, auth_id, status):
+        """Atomic log entry for tracking movement/location."""
+        entry_id = str(uuid.uuid4())
+        timestamp = datetime.now().isoformat()
+        # SQL: INSERT INTO Incarceration_Log (Entry_ID, Inmate_ID, Inst_ID, Auth_ID, Entry_Date, Status)
+        return entry_id
+
+    def get_status(self, inmate_id):
+        """Fetches the latest status via the Current_Inmate_Status view."""
+        # SQL: SELECT * FROM Current_Inmate_Status WHERE Universal_ID = ?
+        pass
+
+```
+
+---
+
+### **2. The "Scout" Module (Data Integrity Agent)**
+
+The "Scout" agent is designed to prevent data decay by monitoring the `Incarceration_Log` for logical anomalies (e.g., an inmate listed in two places, or a release without a prior intake).
+
+**Logic Pattern:** `Verify_Linear_Event_Chain`
+
+```python
+class ScoutAgent:
+    def __init__(self, manager):
+        self.manager = manager
+
+    def audit_inmate_integrity(self, inmate_id):
+        """
+        Scout monitors for non-linear logic.
+        Rule: An inmate must have a balanced 'Intake'/'Release' ledger.
+        """
+        logs = self._fetch_all_logs(inmate_id)
+        
+        # Check for overlapping statuses
+        if self._has_duplicate_active_entries(logs):
+            return "INTEGRITY_EXCEPTION: Dual-Active Status Detected"
+        
+        # Check for orphan records
+        if self._is_log_orphaned(logs):
+            return "INTEGRITY_EXCEPTION: Orphaned Entry Detected"
+            
+        return "HEALTHY"
+
+```
+
+---
+
+### **3. Collected Procedure & Documentation Bundle**
+
+* **Library:** `Universal Relational Library (v3.1.0)`
+* **Module:** `Registry_Manager_Core`
+* **Sub-Tasks:**
+1. `Inmate_Identity_Creation`: Logic for `Inmates` instantiation.
+2. `Log_Event_Linear`: Logic for `Incarceration_Log` updates.
+3. `Verify_Linear_Event_Chain`: The "Scout" logic for ledger integrity.
+
+
+
+#### **Accessibility & Compliance Procedures**
+
+* **Library Maintenance:** Any update to these Python classes must be accompanied by a test case that checks for the **4.5:1 contrast ratio** requirement in any GUI implementation of these fields.
+* **Security (Zero Trust):** The `InmateManager` should be instantiated with a scoped token that limits the `Inst_ID` it can query, ensuring no cross-facility unauthorized access.
