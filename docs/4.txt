@@ -1,0 +1,78 @@
+To refine the **Scout** and **Surgeon** modules, we will implement **Automated Exception Handling** and **Surgical Ledger Correction** within your SDK framework. This ensures that the system not only identifies anomalies but can also remediate them without manual database restructuring.
+
+---
+
+### **1. Enhanced Scout: Automated Alert Triggers**
+
+The Scout is now upgraded to include an `Observer` pattern. It does not just report "HEALTHY" or "EXCEPTION"; it triggers specific remediation protocols.
+
+```python
+class ScoutAgent:
+    # ... existing methods ...
+    
+    def trigger_remediation(self, inmate_id, exception_type):
+        """Dispatches alerts based on the nature of the data decay."""
+        if exception_type == "DUAL_ACTIVE":
+            # Alert: Log a critical security event and notify the Facility Admin
+            self.notify_admin(inmate_id, "Potential unauthorized dual-housing.")
+            
+        elif exception_type == "ORPHAN_LOG":
+            # Alert: Trigger the Surgeon module to flag the record for review
+            self.surgeon.flag_for_correction(inmate_id)
+
+```
+
+---
+
+### **2. Surgeon Module: Non-Destructive Ledger Correction**
+
+The Surgeon uses a "Tombstone/Re-entry" pattern. Rather than deleting or modifying an erroneous log entry (which ruins the audit trail), the Surgeon appends a "Correction Entry" that offsets the error.
+
+```python
+class SurgeonAgent:
+    def __init__(self, db_connection):
+        self.db = db_connection
+
+    def correct_ledger_entry(self, entry_id, correction_note):
+        """
+        Surgically corrects a ledger entry without deleting it.
+        Uses a 'Correction' status to maintain audit immutability.
+        """
+        # 1. Create a correction record
+        # 2. Append a new 'System_Adjustment' entry to the log
+        # 3. Reference the original Entry_ID in the metadata
+        print(f"Correcting Entry {entry_id}: {correction_note}")
+
+```
+
+---
+
+### **3. Unified Procedure: Maintenance & Repair**
+
+| Task | Protocol Name | Logic Flow |
+| --- | --- | --- |
+| **Audit** | `Scout_Verify_Linear` | Scan `Incarceration_Log` for logical breaches. |
+| **Alert** | `Scout_Dispatch_Alert` | If breached, notify `Admin` or `Surgeon`. |
+| **Fix** | `Surgeon_Apply_Tombstone` | Append adjustment record; leave original intact. |
+
+#### **Accessibility & Technical Requirements**
+
+* **Audit UI:** Any dashboard monitoring these agents must adhere to the **Visual Logic** rule: do not use color alone for status alerts. An "Exception" must be accompanied by an error icon and a clear text label (e.g., `[!] ALERT: Duplicate Entry`).
+* **Non-Nested Constraint:** Ensure the `Surgeon` module's correction logic does not nest the original `Entry_ID` inside the new record's payload. Store as a separate reference field (`Original_Entry_Ref`).
+
+---
+
+### **4. Updated Documentation Bundle**
+
+* **Library:** `Universal Relational Library (v3.1.0)`
+* **Module:** `Agent_Cognition_Layer`
+* **Procedures:**
+* `Scout_Verify_Linear` (Diagnostic)
+* `Surgeon_Apply_Tombstone` (Corrective)
+
+
+
+**Procedures for Task Types:**
+
+1. **Diagnostic Tasks:** Always execute using read-only database roles to prevent accidental modification.
+2. **Correction Tasks:** Always require a "Correction Note" input—a mandatory string field for the user to justify the audit trail adjustment, ensuring accountability.
