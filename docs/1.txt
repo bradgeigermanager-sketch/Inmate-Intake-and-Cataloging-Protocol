@@ -1,0 +1,99 @@
+To build a robust, multi-institutional registration system compliant with the **DAMMS (v3.4.0) non-nested logic** and the **Universal Relational Library (v3.1.0)**, we must define these as **Atomic Logical Artifacts (ALAs)**.
+
+Below are the schema definitions using a flat, non-nested structure to ensure scalability and ease of audit.
+
+---
+
+### **1. Core Database Schema (SQL Definition)**
+
+This schema follows the principle that all derived logic (like "current location") is calculated via views or ledger joins, not by nesting tables.
+
+```sql
+-- 1. Identity Registry (Universal)
+CREATE TABLE Inmates (
+    Universal_ID UUID PRIMARY KEY,
+    Legal_Name TEXT NOT NULL,
+    DOB DATE NOT NULL,
+    Global_DOC_Number TEXT UNIQUE NOT NULL
+);
+
+-- 2. Institutional Registry
+CREATE TABLE Institutions (
+    Inst_ID UUID PRIMARY KEY,
+    Name TEXT NOT NULL,
+    Jurisdiction_Level TEXT NOT NULL, -- e.g., 'County', 'State', 'Federal'
+    Address TEXT,
+    Facility_Type TEXT -- 'Jail' or 'Penitentiary'
+);
+
+-- 3. Legal Authority Registry
+CREATE TABLE Legal_Authorities (
+    Auth_ID UUID PRIMARY KEY,
+    Court_Name TEXT NOT NULL,
+    Jurisdiction_Level TEXT NOT NULL,
+    Statute_Code TEXT
+);
+
+-- 4. Incarceration Ledger (The Temporal Log)
+-- Note: Each entry is a single event. Current location is queried by selecting the latest date.
+CREATE TABLE Incarceration_Log (
+    Entry_ID UUID PRIMARY KEY,
+    Inmate_ID UUID REFERENCES Inmates(Universal_ID),
+    Inst_ID UUID REFERENCES Institutions(Inst_ID),
+    Auth_ID UUID REFERENCES Legal_Authorities(Auth_ID),
+    Entry_Date TIMESTAMP NOT NULL,
+    Status TEXT -- 'Intake', 'Transfer', 'Release', 'Court_Out'
+);
+
+```
+
+---
+
+### **2. Logical Derivation (Non-Nested View)**
+
+To avoid nested logic, we use an **Active_Status_View**. This view dynamically pulls the most recent entry from the `Incarceration_Log`.
+
+```sql
+CREATE VIEW Current_Inmate_Status AS
+SELECT 
+    i.Legal_Name, 
+    ins.Name AS Facility_Name, 
+    la.Court_Name,
+    log.Entry_Date
+FROM Inmates i
+JOIN Incarceration_Log log ON i.Universal_ID = log.Inmate_ID
+JOIN Institutions ins ON log.Inst_ID = ins.Inst_ID
+JOIN Legal_Authorities la ON log.Auth_ID = la.Auth_ID
+WHERE log.Entry_Date = (
+    SELECT MAX(Entry_Date) 
+    FROM Incarceration_Log 
+    WHERE Inmate_ID = i.Universal_ID
+);
+
+```
+
+---
+
+### **3. Operational Procedure: Inmate Intake (Universal Procedure)**
+
+This procedure is a standard sub-task for your library.
+
+* **Sub-Task:** `REGISTER_INMATE_EVENT`
+* **Input Requirements:** `Universal_ID`, `Inst_ID`, `Auth_ID`, `Event_Type`
+* **Execution Logic:**
+1. **Validate:** Verify `Universal_ID` exists in `Inmates` registry.
+2. **Verify:** Check if current `Inst_ID` status is 'Released'. If not, trigger an 'Exception/Duplicate Entry' flag for review.
+3. **Insert:** Create a new record in `Incarceration_Log`.
+4. **Update:** Update any local cache or status flag using atomic updates (avoiding recursive calls).
+
+
+
+---
+
+### **4. Accessibility & Compliance Checklist**
+
+* **Audit Trail:** The `Incarceration_Log` serves as the permanent audit trail for all movements.
+* **No Nesting:** All data retrieval relies on `JOIN` operations. No field in `Inmates` contains data from `Institutions` (and vice-versa).
+* **Accessibility:**
+* **Form Input:** Forms must utilize the `autocomplete` attribute to prevent entry errors for `Inst_ID` and `Auth_ID`.
+* **Labeling:** Every form element must have a corresponding `<label>` tag explicitly referencing the field ID.
