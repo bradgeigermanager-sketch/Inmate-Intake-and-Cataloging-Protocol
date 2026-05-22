@@ -1,0 +1,65 @@
+To evolve the **Inmate Intake & Cataloging Protocol (IICP)** for a multi-institutional environment, the data architecture must shift from a "single-facility" mindset to a **Multi-Tenant Relational Model**. This allows for institutional isolation, centralized oversight, and granular legal tracking.
+
+---
+
+### **1. Core Architectural Strategy**
+
+To support multiple institutions, you should utilize a **Normalized Relational Schema** where the individual (Inmate) is the master record, and their placement is a temporal event linked to specific institutions.
+
+#### **Key Entity Relationships**
+
+* **`Institutions` Table:** Defines each facility, its jurisdiction, and contact protocols.
+* **`Legal_Authorities` Table:** Maps specific courts, sentencing bodies, or parole boards to the institution.
+* **`Inmate_Movement` Table:** A history log (ledger) tracking every transfer between institutions and the status of their legal custody.
+
+---
+
+### **2. Updated Schema Components**
+
+| Table | Critical Fields | Purpose |
+| --- | --- | --- |
+| **`Inmates`** | `Universal_ID`, `Legal_Name`, `DOB`, `Global_DOC#` | Permanent, unchanging identity. |
+| **`Institutions`** | `Inst_ID`, `Name`, `Jurisdiction`, `Type` (Jail/Pen), `Address` | Facility identification. |
+| **`Legal_Auth`** | `Auth_ID`, `Court_Name`, `Statute_Code`, `Jurisdiction_Level` | Tracks sentencing/holding authority. |
+| **`Incarceration_Log`** | `Entry_ID`, `Inmate_ID`, `Inst_ID`, `Auth_ID`, `Start_Date`, `Status` | Links individual to facility and authority. |
+
+---
+
+### **3. Operational Procedures for Multi-Facility Management**
+
+#### **Step A: Jurisdiction Tagging**
+
+Every record must be indexed by `Jurisdiction_Level` (e.g., County, State, Federal). This ensures that queries for legal documents or court appearances can be filtered by the presiding authority without cross-contaminating data between independent institutions.
+
+#### **Step B: Temporal Tracking (The "Ledger" Approach)**
+
+Instead of updating an `Inmate.Location` field, create a new record in the `Incarceration_Log` whenever an inmate moves. This provides a full, immutable audit trail of:
+
+* Which facility held the individual at any specific date/time.
+* Which legal authority authorized the current confinement.
+* The transition reason (e.g., Transfer, Court Appearance, Release, Re-intake).
+
+#### **Step C: Data Access & Privacy (Zero Trust)**
+
+* **Multi-Tenancy:** Implement row-level security (RLS) so that a user at "Sheridan County Jail" can only view records for their specific `Inst_ID`, while a "Central Administrator" can query across the entire system.
+* **Synchronization:** Use unique `Universal_ID`s across all facilities. If an individual is booked into a new facility, the system performs a lookup for the existing `Universal_ID` to prevent duplicate identities (Alias Tracking).
+
+---
+
+### **4. Accessibility & Interface Considerations**
+
+When building the interface for multi-institutional staff:
+
+* **Contextual Banners:** Every screen should prominently display the **Current Facility** and **Presiding Authority** to avoid confusion during inter-agency transfers.
+* **Adaptive Labels:** Forms should dynamically label fields based on the selected `Jurisdiction_Level` (e.g., changing "Sheriff's ID" to "Federal BOP Number").
+* **Query Hygiene:** When querying, always include the `Inst_ID` in the `WHERE` clause to avoid returning results from the wrong facility.
+
+---
+
+### **Procedure Maintenance: Multi-Tenant Module**
+
+To integrate this into your existing **Universal Relational Library (v3.1.0)**:
+
+1. **Define the `Sync` Sub-task:** Create a procedure for pushing identity updates from the main server to local facility nodes while maintaining local control of "housing" data.
+2. **Audit the Schema:** Ensure that no `Inst_ID` or `Auth_ID` is hard-coded into your automation scripts (use variables/parameters instead).
+3. **Cross-Reference Validation:** Add a verification step to ensure that `Legal_Auth` matches the `Jurisdiction` of the `Institution`.
